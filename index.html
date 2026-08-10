@@ -1,9 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RSVP</title>
+<title>RSVP to Yana & Angelo</title>
+<link rel="icon" type="image/png" href="https://yanaandangelo.love/_assets/images/10d67088c3a49d4676dec171a073946c.png">
 <style>
   * { box-sizing: border-box; }
   @font-face {
@@ -53,6 +55,30 @@
     background: #fdfaf3;
   }
   textarea { resize: vertical; min-height: 80px; }
+  .field-wrap { position: relative; }
+  #nameSuggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fdfaf3;
+    border: 1px solid #b8ab8a;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+  #nameSuggestions div {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  #nameSuggestions div:hover,
+  #nameSuggestions div.active {
+    background: #d9d0b4;
+  }
   .choice {
     display: block;
     width: 100%;
@@ -126,7 +152,10 @@
   <h1>Please RSVP</h1>
 
   <label for="fullName">Full Name*</label>
-  <input type="text" id="fullName" placeholder="e.g. Juan Dela Cruz" />
+  <div class="field-wrap">
+    <input type="text" id="fullName" placeholder="Start typing your name..." autocomplete="off" />
+    <div id="nameSuggestions"></div>
+  </div>
   <div class="error" id="nameError">Please enter your full name.</div>
 
   <label>Are you coming?*</label>
@@ -153,8 +182,8 @@
 // ====== CONFIGURE THESE TWO URLS ======
 // 1. Published-to-web CSV link of your Guest List sheet (columns: Name, Role)
 const GUESTLIST_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcuIaH5mR6E0aaKtrpe2X2eKZbWv6FVLvUyTIzOJ5P4mho-X7g6A40-xOyA_3ho2oA7geXcqB30VjN/pub?gid=0&single=true&output=csv";
-// 2. Deployed Apps Script Web App URL (from apps-script.gs)
-const SUBMIT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRcuIaH5mR6E0aaKtrpe2X2eKZbWv6FVLvUyTIzOJ5P4mho-X7g6A40-xOyA_3ho2oA7geXcqB30VjN/pub?gid=1224227022&single=true&output=csv";
+// 2. Deployed Apps Script Web App URL — leave as-is, it fills in automatically
+const SUBMIT_URL = "https://script.google.com/macros/s/AKfycbxZ-YsOpMZ9ZfjmxXvYRn5PwGgSU5Bjs3toxM-luf4zp3E0m2ohXc2yUIo2gYYSa05NBg/exec";
 // =======================================
 
 let guestList = [];
@@ -178,6 +207,36 @@ async function loadGuestList() {
   }
 }
 loadGuestList();
+
+const nameInput = document.getElementById("fullName");
+const suggestionsBox = document.getElementById("nameSuggestions");
+
+function showSuggestions(query) {
+  suggestionsBox.innerHTML = "";
+  if (!query) { suggestionsBox.style.display = "none"; return; }
+  const q = query.toLowerCase();
+  const matches = guestList
+    .filter(g => g.name && g.name.toLowerCase().includes(q))
+    .slice(0, 8);
+  if (matches.length === 0) { suggestionsBox.style.display = "none"; return; }
+  matches.forEach(g => {
+    const item = document.createElement("div");
+    item.textContent = g.name;
+    item.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      nameInput.value = g.name;
+      suggestionsBox.style.display = "none";
+    });
+    suggestionsBox.appendChild(item);
+  });
+  suggestionsBox.style.display = "block";
+}
+
+nameInput.addEventListener("input", () => showSuggestions(nameInput.value.trim()));
+nameInput.addEventListener("blur", () => {
+  setTimeout(() => { suggestionsBox.style.display = "none"; }, 100);
+});
+nameInput.addEventListener("focus", () => showSuggestions(nameInput.value.trim()));
 
 function findRole(name) {
   const clean = name.trim().toLowerCase();
