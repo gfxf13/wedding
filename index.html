@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSVP</title>
+<style>
+  * { box-sizing: border-box; }
+  @font-face {
+    font-family: 'Neue Montreal';
+    src: url('https://fonts.cdnfonts.com/s/85891/NeueMontreal-Regular.woff') format('woff');
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: 'Neue Montreal';
+    src: url('https://fonts.cdnfonts.com/s/85891/NeueMontreal-Bold.woff') format('woff');
+    font-weight: 700;
+  }
+  body {
+    margin: 0;
+    font-family: 'Neue Montreal', Helvetica, Arial, sans-serif;
+    background: #f5f0e6;
+    color: #3a2f28;
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    max-width: 480px;
+    width: 100%;
+    background: #e7dfc9;
+    border-radius: 8px;
+    padding: 32px 28px;
+  }
+  h1 {
+    font-size: 1.5rem;
+    text-align: center;
+    color: #a34a2e;
+    margin-top: 0;
+  }
+  label {
+    display: block;
+    font-size: 0.95rem;
+    margin: 18px 0 6px;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #b8ab8a;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    background: #fdfaf3;
+  }
+  textarea { resize: vertical; min-height: 80px; }
+  .choice {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    margin-top: 8px;
+    border: 1px solid #b8ab8a;
+    border-radius: 6px;
+    background: #d9d0b4;
+    font-family: inherit;
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .choice.selected {
+    background: #8a9a6b;
+    color: #fff;
+    border-color: #8a9a6b;
+  }
+  button.submit {
+    width: 100%;
+    margin-top: 26px;
+    padding: 16px;
+    border: none;
+    border-radius: 6px;
+    background: #8a9a6b;
+    color: #fff;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button.submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .note {
+    font-size: 0.75rem;
+    text-align: center;
+    color: #6b6255;
+    margin-top: 10px;
+  }
+  .error {
+    color: #a34a2e;
+    font-size: 0.85rem;
+    margin-top: 6px;
+    display: none;
+  }
+  #thankyou {
+    display: none;
+    text-align: center;
+  }
+  #thankyou h1 { margin-bottom: 4px; }
+  .role-box {
+    margin-top: 20px;
+    padding: 18px;
+    background: #d9d0b4;
+    border-radius: 6px;
+  }
+  .role-label {
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    color: #6b6255;
+  }
+  .role-value {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #a34a2e;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="formCard">
+  <h1>Please RSVP</h1>
+
+  <label for="fullName">Full Name*</label>
+  <input type="text" id="fullName" placeholder="e.g. Juan Dela Cruz" />
+  <div class="error" id="nameError">Please enter your full name.</div>
+
+  <label>Are you coming?*</label>
+  <button type="button" class="choice" data-value="Yes, of course!">Yes, of course!</button>
+  <button type="button" class="choice" data-value="Unfortunately, I can't. Sorry!">Unfortunately, I can't. Sorry!</button>
+  <div class="error" id="attendError">Please select an option.</div>
+
+  <label for="message">A message for us:</label>
+  <textarea id="message" placeholder="(optional)"></textarea>
+
+  <button class="submit" id="submitBtn">RSVP now</button>
+  <div class="note">Your response will be recorded automatically.</div>
+</div>
+
+<div class="card" id="thankyou">
+  <h1>Thank you, <span id="tyName"></span>!</h1>
+  <div class="role-box">
+    <div class="role-label">YOUR ROLE</div>
+    <div class="role-value" id="tyRole">GUEST</div>
+  </div>
+</div>
+
+<script>
+// ====== CONFIGURE THESE TWO URLS ======
+// 1. Published-to-web CSV link of your Guest List sheet (columns: Name, Role)
+const GUESTLIST_CSV_URL = "PASTE_YOUR_PUBLISHED_CSV_LINK_HERE";
+// 2. Deployed Apps Script Web App URL (from apps-script.gs)
+const SUBMIT_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+// =======================================
+
+let guestList = [];
+let selectedAttendance = null;
+
+function parseCSV(text) {
+  const rows = text.trim().split("\n").map(r => r.split(",").map(c => c.trim().replace(/^"|"$/g, "")));
+  const header = rows.shift();
+  const nameIdx = header.findIndex(h => h.toLowerCase().includes("name"));
+  const roleIdx = header.findIndex(h => h.toLowerCase().includes("role"));
+  return rows.map(r => ({ name: r[nameIdx] || "", role: r[roleIdx] || "GUEST" }));
+}
+
+async function loadGuestList() {
+  try {
+    const res = await fetch(GUESTLIST_CSV_URL);
+    const text = await res.text();
+    guestList = parseCSV(text);
+  } catch (e) {
+    console.error("Could not load guest list", e);
+  }
+}
+loadGuestList();
+
+function findRole(name) {
+  const clean = name.trim().toLowerCase();
+  const match = guestList.find(g => g.name.trim().toLowerCase() === clean);
+  return match ? match.role.toUpperCase() : "GUEST";
+}
+
+document.querySelectorAll(".choice").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".choice").forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    selectedAttendance = btn.dataset.value;
+  });
+});
+
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  const name = document.getElementById("fullName").value.trim();
+  const message = document.getElementById("message").value.trim();
+  let valid = true;
+
+  document.getElementById("nameError").style.display = name ? "none" : "block";
+  document.getElementById("attendError").style.display = selectedAttendance ? "none" : "block";
+  if (!name || !selectedAttendance) valid = false;
+  if (!valid) return;
+
+  const role = findRole(name);
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Submitting...";
+
+  try {
+    await fetch(SUBMIT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        name: name,
+        attending: selectedAttendance,
+        message: message,
+        role: role,
+        timestamp: new Date().toISOString()
+      })
+    });
+  } catch (e) {
+    console.error("Submit failed", e);
+  }
+
+  document.getElementById("tyName").textContent = name;
+  document.getElementById("tyRole").textContent = role;
+  document.getElementById("formCard").style.display = "none";
+  document.getElementById("thankyou").style.display = "block";
+});
+</script>
+
+</body>
+</html>
